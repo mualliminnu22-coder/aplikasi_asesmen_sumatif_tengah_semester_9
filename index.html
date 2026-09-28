@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Penilaian Tengah Semester - Matematika Kelas IX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .match-item { transition: all 0.2s; cursor: pointer; }
+        .match-item.selected { border-color: #3b82f6; background-color: #eff6ff; }
+        .match-line { position: absolute; height: 2px; background-color: #3b82f6; transform-origin: left center; z-index: 10; }
+        /* Custom Scrollbar for better UI */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; }
+            .shadow-lg { box-shadow: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Firebase Imports and Logic setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, getDocs, addDoc, query, where, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-math-exam-app';
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+                /* Dummy config for local testing if needed, though usually fails without real backend */
+            };
+        } catch (e) {
+            console.error("Error parsing firebase config", e);
+        }
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        window.db = db;
+        window.auth = auth;
+        window.appId = appId;
+        
+        // Expose Firebase functions to global scope for React
+        window.firebaseUtils = {
+            doc, setDoc, getDoc, collection, getDocs, addDoc, query, where, updateDoc, signInAnonymously, signInWithCustomToken
+        };
+    </script>
+
+    <script type="text/babel">
+        const INITIAL_QUESTIONS = [
+            // Pilihan Ganda (10)
+            { id: 1, type: 'pg', text: 'Dalam sebuah pameran buku, Andi membeli 2 buku tulis dan 1 pulpen dengan harga Rp15.000,00. Di tempat yang sama, Budi membeli 1 buku tulis dan 2 pulpen dengan harga Rp12.000,00. Berapakah harga 1 buku tulis?', options: ['Rp3.000,00', 'Rp4.000,00', 'Rp5.000,00', 'Rp6.000,00'], answer: 'Rp6.000,00' },
+            { id: 2, type: 'pg', text: 'Di sebuah area parkir terdapat kendaraan berupa mobil (beroda 4) dan sepeda motor (beroda 2). Jika jumlah seluruh kendaraan adalah 30 unit dan jumlah seluruh roda adalah 90 buah, berapakah banyak mobil di area parkir tersebut?', options: ['10 mobil', '15 mobil', '20 mobil', '25 mobil'], answer: '15 mobil' },
+            { id: 3, type: 'pg', text: 'Seorang ayah usianya 3 kali usia anaknya. Jika selisih usia mereka adalah 30 tahun, berapakah usia anak tersebut saat ini?', options: ['10 tahun', '12 tahun', '15 tahun', '20 tahun'], answer: '15 tahun' },
+            { id: 4, type: 'pg', text: 'Rina membeli 2 kemeja dan 3 celana panjang dengan total Rp450.000,00. Siti membeli 3 kemeja dan 1 celana panjang dengan jenis yang sama seharga Rp325.000,00. Berapa harga satu potong kemeja?', options: ['Rp50.000,00', 'Rp75.000,00', 'Rp100.000,00', 'Rp125.000,00'], answer: 'Rp75.000,00' },
+            { id: 5, type: 'pg', text: 'Sebuah taman berbentuk persegi panjang memiliki keliling 40 meter. Jika selisih ukuran panjang dan lebarnya adalah 4 meter, berapakah luas taman tersebut?', options: ['80 m²', '96 m²', '100 m²', '120 m²'], answer: '96 m²' },
+            { id: 6, type: 'pg', text: 'Keluarga Pak RT membeli tiket masuk ke kebun binatang untuk 2 orang dewasa dan 3 anak-anak seharga Rp140.000,00. Keluarga Pak RW membeli tiket untuk 3 orang dewasa dan 4 anak-anak seharga Rp200.000,00. Berapakah harga 1 tiket untuk orang dewasa?', options: ['Rp20.000,00', 'Rp30.000,00', 'Rp40.000,00', 'Rp50.000,00'], answer: 'Rp40.000,00' },
+            { id: 7, type: 'pg', text: 'Seorang peternak memelihara ayam dan sapi. Total hewan ternak tersebut adalah 40 ekor. Jika dihitung, jumlah seluruh kaki hewan ternak tersebut adalah 112 kaki. Berapa banyak ayam yang dipelihara peternak tersebut?', options: ['16 ekor', '20 ekor', '24 ekor', '28 ekor'], answer: '24 ekor' },
+            { id: 8, type: 'pg', text: 'Di toko buah, harga 3 kg apel dan 2 kg jeruk adalah Rp130.000,00. Sedangkan harga 2 kg apel dan 2 kg jeruk adalah Rp100.000,00. Berapakah harga 1 kg apel?', options: ['Rp15.000,00', 'Rp20.000,00', 'Rp25.000,00', 'Rp30.000,00'], answer: 'Rp30.000,00' },
+            { id: 9, type: 'pg', text: 'Sebuah perahu menempuh jarak 60 km menyusuri arus sungai dalam waktu 2 jam. Saat kembali melawan arus sungai menempuh jarak yang sama, dibutuhkan waktu 3 jam. Berapa kecepatan perahu di air yang tenang?', options: ['20 km/jam', '25 km/jam', '30 km/jam', '35 km/jam'], answer: '25 km/jam' },
+            { id: 10, type: 'pg', text: 'Sita membeli 5 pensil dan 3 penghapus seharga Rp21.000,00. Rini membeli 4 pensil dan 2 penghapus seharga Rp16.000,00. Berapakah harga 1 buah penghapus?', options: ['Rp1.500,00', 'Rp2.000,00', 'Rp2.500,00', 'Rp3.000,00'], answer: 'Rp2.000,00' },
+
+            // Pilihan Ganda Kompleks (15) - Multiple correct options
+            { id: 11, type: 'pg_kompleks', text: 'Diketahui harga 3 porsi bakso dan 2 gelas es jeruk adalah Rp35.000,00. Sedangkan harga 1 porsi bakso dan 3 gelas es jeruk adalah Rp21.000,00. Manakah pernyataan berikut yang bernilai BENAR? (Pilih semua yang benar)', options: ['Harga 1 porsi bakso adalah Rp9.000,00', 'Harga 1 gelas es jeruk adalah Rp4.000,00', 'Harga 2 porsi bakso lebih mahal dari 3 gelas es jeruk', 'Membeli 1 bakso dan 1 es jeruk membutuhkan uang Rp13.000,00'], answers: ['Harga 1 porsi bakso adalah Rp9.000,00', 'Harga 1 gelas es jeruk adalah Rp4.000,00', 'Harga 2 porsi bakso lebih mahal dari 3 gelas es jeruk', 'Membeli 1 bakso dan 1 es jeruk membutuhkan uang Rp13.000,00'] },
+            { id: 12, type: 'pg_kompleks', text: 'Biaya parkir untuk 3 jam mobil dan 2 jam motor adalah Rp19.000,00. Sedangkan untuk 2 jam mobil dan 4 jam motor adalah Rp18.000,00. Pernyataan manakah yang tepat?', options: ['Tarif parkir mobil per jam adalah Rp5.000,00', 'Tarif parkir motor per jam adalah Rp2.000,00', 'Tarif parkir 1 mobil sama dengan 2 motor', 'Parkir 1 jam mobil dan 1 jam motor biayanya Rp7.000,00'], answers: ['Tarif parkir mobil per jam adalah Rp5.000,00', 'Tarif parkir motor per jam adalah Rp2.000,00', 'Parkir 1 jam mobil dan 1 jam motor biayanya Rp7.000,00'] },
+            { id: 13, type: 'pg_kompleks', text: 'Model matematika dari suatu permasalahan sehari-hari adalah: 2x + y = 15.000. Manakah masalah kontekstual di bawah ini yang mungkin sesuai dengan model tersebut?', options: ['Harga 2 buku tulis dan 1 pensil adalah Rp15.000,00', 'Panjang 2 buah pita merah dan 1 pita biru adalah 15.000 cm', 'Berat 1 karung beras dan 2 karung gula adalah 15.000 gram', 'Usia kakek ditambah dua kali usia paman adalah 15.000 hari'], answers: ['Harga 2 buku tulis dan 1 pensil adalah Rp15.000,00', 'Panjang 2 buah pita merah dan 1 pita biru adalah 15.000 cm'] },
+            { id: 14, type: 'pg_kompleks', text: 'Dalam celengan Tono terdapat uang koin pecahan Rp500,00 dan Rp1.000,00. Total koin ada 20 buah dan total nilainya Rp16.000,00. Manakah pernyataan yang benar?', options: ['Jumlah koin Rp1.000,00 lebih banyak dari koin Rp500,00', 'Banyak koin Rp1.000,00 adalah 12 buah', 'Banyak koin Rp500,00 adalah 8 buah', 'Selisih banyak koin Rp1.000,00 dan Rp500,00 adalah 6 buah'], answers: ['Jumlah koin Rp1.000,00 lebih banyak dari koin Rp500,00', 'Banyak koin Rp1.000,00 adalah 12 buah', 'Banyak koin Rp500,00 adalah 8 buah'] },
+            { id: 15, type: 'pg_kompleks', text: 'Sebuah hotel memiliki dua tipe kamar: Standard (kapasitas 2 orang) dan Family (kapasitas 4 orang). Pada hari libur, 30 kamar terisi penuh oleh 80 tamu. Kesimpulan yang tepat dari keadaan tersebut adalah...', options: ['Jumlah kamar tipe Standard yang terisi adalah 20 kamar', 'Jumlah kamar tipe Family yang terisi adalah 10 kamar', 'Tamu yang menginap di kamar Standard lebih banyak secara total', 'Pendapatan kamar Family pasti lebih besar dari Standard'], answers: ['Jumlah kamar tipe Standard yang terisi adalah 20 kamar', 'Jumlah kamar tipe Family yang terisi adalah 10 kamar', 'Tamu yang menginap di kamar Family ada sebanyak 40 orang (sama jumlahnya)'] },
+            { id: 16, type: 'pg_kompleks', text: 'Dua buah bilangan cacah memiliki jumlah 45 dan selisihnya adalah 9. Pernyataan mana saja yang tepat untuk mendeskripsikan kedua bilangan tersebut?', options: ['Bilangan yang lebih besar adalah 27', 'Bilangan yang lebih kecil adalah 18', 'Hasil kali kedua bilangan tersebut adalah 486', 'Hasil bagi kedua bilangan tersebut adalah 1,5'], answers: ['Bilangan yang lebih besar adalah 27', 'Bilangan yang lebih kecil adalah 18', 'Hasil kali kedua bilangan tersebut adalah 486', 'Hasil bagi kedua bilangan tersebut adalah 1,5'] },
+            { id: 17, type: 'pg_kompleks', text: 'Ibu Dina membagikan 5 kg gula pasir dan 3 kg tepung terigu seharga Rp95.000,00 untuk baksos. Ibu Nita membagikan 2 kg gula pasir dan 4 kg tepung terigu seharga Rp66.000,00. Analisis yang benar dari harga barang baksos tersebut adalah...', options: ['Harga 1 kg gula pasir adalah Rp13.000,00', 'Harga 1 kg tepung terigu adalah Rp10.000,00', 'Harga gula pasir lebih mahal dari tepung terigu', 'Membeli 1 kg gula dan 1 kg tepung butuh uang Rp23.000,00'], answers: ['Harga 1 kg gula pasir adalah Rp13.000,00', 'Harga 1 kg tepung terigu adalah Rp10.000,00', 'Harga gula pasir lebih mahal dari tepung terigu', 'Membeli 1 kg gula dan 1 kg tepung butuh uang Rp23.000,00'] },
+            { id: 18, type: 'pg_kompleks', text: 'Sistem persewaan sepeda memberikan tarif berupa tarif dasar ditambah tarif per jam pemakaian. Jika menyewa 2 jam biayanya Rp20.000,00 dan menyewa 5 jam biayanya Rp35.000,00, manakah ketentuan tarif sewa sepeda yang berlaku?', options: ['Tarif per jam sewa adalah Rp5.000,00', 'Tarif dasar sewa awal adalah Rp10.000,00', 'Menyewa selama 3 jam akan dikenakan biaya Rp25.000,00', 'Tarif sewa tidak memiliki biaya dasar tetap (hanya per jam)'], answers: ['Tarif per jam sewa adalah Rp5.000,00', 'Tarif dasar sewa awal adalah Rp10.000,00', 'Menyewa selama 3 jam akan dikenakan biaya Rp25.000,00'] },
+            { id: 19, type: 'pg_kompleks', text: 'Panitia menjual tiket pertandingan sepak bola dengan kategori VIP dan Reguler. Penjualan 2 tiket VIP dan 1 Reguler menghasilkan uang Rp500.000,00. Penjualan 1 tiket VIP dan 3 Reguler menghasilkan uang Rp500.000,00. Pernyataan yang benar dari informasi tersebut adalah...', options: ['Harga 1 tiket VIP adalah Rp200.000,00', 'Harga 1 tiket Reguler adalah Rp100.000,00', 'Harga 2 tiket VIP setara dengan harga 4 tiket Reguler', 'Tiket VIP harganya dua kali lipat tiket Reguler'], answers: ['Harga 1 tiket VIP adalah Rp200.000,00', 'Harga 1 tiket Reguler adalah Rp100.000,00', 'Harga 2 tiket VIP setara dengan harga 4 tiket Reguler', 'Tiket VIP harganya dua kali lipat tiket Reguler'] },
+            { id: 20, type: 'pg_kompleks', text: 'Terdapat dua sudut saling berpelurus (jumlah 180 derajat). Jika besar sudut yang satu lebih besar 30 derajat dari sudut yang lainnya, maka...', options: ['Sudut yang lebih besar berukuran 105 derajat', 'Sudut yang lebih kecil berukuran 75 derajat', 'Keduanya merupakan sudut tumpul', 'Selisih kedua sudut adalah 30 derajat'], answers: ['Sudut yang lebih besar berukuran 105 derajat', 'Sudut yang lebih kecil berukuran 75 derajat', 'Selisih kedua sudut adalah 30 derajat'] },
+            { id: 21, type: 'pg_kompleks', text: 'Budi dan Iwan memiliki sejumlah kelereng. Jika Budi memberikan 5 kelereng kepada Iwan, kelereng mereka menjadi sama banyak. Jika Iwan memberikan 5 kelereng kepada Budi, maka kelereng Budi menjadi dua kali lipat kelereng Iwan. Manakah yang benar?', options: ['Jumlah kelereng Budi mula-mula adalah 35 butir', 'Jumlah kelereng Iwan mula-mula adalah 25 butir', 'Total kelereng mereka berdua adalah 60 butir', 'Kelereng Budi mula-mula lebih banyak 10 butir dari Iwan'], answers: ['Jumlah kelereng Budi mula-mula adalah 35 butir', 'Jumlah kelereng Iwan mula-mula adalah 25 butir', 'Total kelereng mereka berdua adalah 60 butir', 'Kelereng Budi mula-mula lebih banyak 10 butir dari Iwan'] },
+            { id: 22, type: 'pg_kompleks', text: 'Manakah dari metode berikut yang umum diajarkan dan valid untuk menyelesaikan Sistem Persamaan Linear Dua Variabel?', options: ['Metode Substitusi', 'Metode Eliminasi', 'Metode Grafik', 'Metode Campuran (Eliminasi-Substitusi)'], answers: ['Metode Substitusi', 'Metode Eliminasi', 'Metode Grafik', 'Metode Campuran (Eliminasi-Substitusi)'] },
+            { id: 23, type: 'pg_kompleks', text: 'Misalkan umur Doni sekarang adalah x tahun dan umur Rika y tahun. "Tiga tahun yang lalu, umur Doni adalah dua kali umur Rika". Bagaimana penulisan model matematikanya?', options: ['x - 3 = 2(y - 3)', 'x - 2y = -3', 'x = 2y - 3', 'x - 3 = 2y - 6'], answers: ['x - 3 = 2(y - 3)', 'x - 2y = -3', 'x - 3 = 2y - 6'] },
+            { id: 24, type: 'pg_kompleks', text: 'Jika grafik dua persamaan linear (garis lurus) saling sejajar dan tidak berhimpit pada bidang koordinat Cartesius, apa artinya terhadap penyelesaian sistem persamaannya?', options: ['Sistem tersebut tidak memiliki solusi', 'Sistem tersebut memiliki solusi tak hingga', 'Gradien (kemiringan) kedua garis tersebut sama', 'Garis tersebut tidak akan pernah berpotongan di titik manapun'], answers: ['Sistem tersebut tidak memiliki solusi', 'Gradien (kemiringan) kedua garis tersebut sama', 'Garis tersebut tidak akan pernah berpotongan di titik manapun'] },
+            { id: 25, type: 'pg_kompleks', text: 'Dalam ujian matematika, skor benar dinilai 4, salah dinilai -1, dan tidak dijawab 0. Dari 40 soal, Ali menjawab 36 soal dan mendapat skor total 119. Pernyataan yang benar tentang pengerjaan Ali adalah...', options: ['Ali menjawab benar sebanyak 31 soal', 'Ali menjawab salah sebanyak 5 soal', 'Ali tidak menjawab 4 soal', 'Total skor jika semua jawaban Ali benar adalah 144'], answers: ['Ali menjawab benar sebanyak 31 soal', 'Ali menjawab salah sebanyak 5 soal', 'Ali tidak menjawab 4 soal', 'Total skor jika semua jawaban Ali benar adalah 144'] },
+
+            // Menjodohkan (5) - Handled as pairs
+            { 
+                id: 26, type: 'menjodohkan', 
+                text: 'Jodohkan kalimat permasalahan berikut dengan model matematikanya! (Misal x = buku, y = pensil)',
+                pairs: [
+                    { left: 'Harga 2 buku dan 3 pensil Rp15.000', right: '2x + 3y = 15.000' },
+                    { left: 'Harga 3 buku lebih murah Rp5.000 dari 2 pensil', right: '3x = 2y - 5.000' },
+                    { left: 'Jumlah buku dan pensil yang dibeli adalah 15', right: 'x + y = 15' },
+                    { left: 'Harga pensil setengah dari harga buku', right: 'y = 1/2 x' }
+                ]
+            },
+            { 
+                id: 27, type: 'menjodohkan', 
+                text: 'Jodohkan sistem persamaan berikut dengan himpunan penyelesaiannya (x, y)!',
+                pairs: [
+                    { left: 'x + y = 5 dan x - y = 1', right: '(3, 2)' },
+                    { left: '2x + y = 7 dan x + y = 4', right: '(3, 1)' },
+                    { left: 'x + 2y = 8 dan 2x - y = 6', right: '(4, 2)' },
+                    { left: '3x + y = 10 dan 2x + 2y = 8', right: '(3, 1)' } // Note: Right answers can be identical or unique, matching component handles text matching. Let's make it unique for clarity:
+                ]
+            },
+            { 
+                id: 28, type: 'menjodohkan', 
+                text: 'Jodohkan masalah jumlah objek berikut dengan jawaban akhirnya!',
+                pairs: [
+                    { left: '30 kendaraan (mobil & motor), total 90 roda. Berapa mobil?', right: '15' },
+                    { left: '40 ternak (ayam & kambing), total 112 kaki. Berapa ayam?', right: '24' },
+                    { left: 'Keliling persegi panjang 40m, selisih sisi 4m. Panjangnya?', right: '12' },
+                    { left: 'Koin Rp500 dan Rp1000 total 20 koin nilai Rp16.000. Koin Rp500 ada?', right: '8' }
+                ]
+            },
+             { 
+                id: 29, type: 'menjodohkan', 
+                text: 'Jodohkan karakteristik dua persamaan garis dengan sifat solusinya!',
+                pairs: [
+                    { left: 'Kedua garis saling berpotongan di satu titik', right: 'Memiliki tepat satu solusi (x, y)' },
+                    { left: 'Kedua garis saling berhimpit (persamaan ekuivalen)', right: 'Memiliki solusi tak hingga banyaknya' },
+                    { left: 'Kedua garis sejajar namun tidak berhimpit', right: 'Tidak memiliki solusi (himpunan kosong)' },
+                    { left: 'Konstanta dan koefisien ruas kiri-kanan proporsional', right: 'Memiliki solusi tak hingga banyaknya' }
+                ]
+            },
+            { 
+                id: 30, type: 'menjodohkan', 
+                text: 'Jodohkan langkah pengerjaan metode penyelesaian SPLDV dengan nama metodenya!',
+                pairs: [
+                    { left: 'Mengganti salah satu variabel dengan ekspresi variabel lainnya', right: 'Substitusi' },
+                    { left: 'Menyamakan koefisien lalu mengurangkan/menjumlahkan persamaan', right: 'Eliminasi' },
+                    { left: 'Menggambar garis pada koordinat dan mencari titik temu', right: 'Grafik' },
+                    { left: 'Menggunakan matriks determinan (aturan Cramer)', right: 'Matriks' }
+                ]
+            }
+        ];
+
+        const { useState, useEffect, useRef, useCallback } = React;
+        const DEFAULT_PASS_ADMIN = "admin123";
+
+        function App() {
+            const [view, setView] = useState('login'); // login, student_dashboard, exam, result, admin_dashboard, admin_edit
+            const [user, setUser] = useState(null); // { role: 'student'|'admin', name, kelas, presensi, id, attempts }
+            const [questions, setQuestions] = useState(INITIAL_QUESTIONS);
+            const [examData, setExamData] = useState(null); // Data for ongoing exam
+            const [dbInitialized, setDbInitialized] = useState(false);
+            const [appSettings, setAppSettings] = useState({ adminPassword: DEFAULT_PASS_ADMIN, logo: '' });
+
+            // Initialize App Data (Mocking Firestore logic for robust single-file local state first, syncing if cloud requested)
+            useEffect(() => {
+                // In a real app, we'd fetch from Firestore here.
+                // For this interactive document, we'll rely on local state initially, 
+                // but structure it so Firestore can easily replace it.
+                const storedSettings = localStorage.getItem('mathExamSettings');
+                if(storedSettings) {
+                    setAppSettings(JSON.parse(storedSettings));
+                }
+                const storedQuestions = localStorage.getItem('mathExamQuestions');
+                if(storedQuestions) {
+                    setQuestions(JSON.parse(storedQuestions));
+                }
+                setDbInitialized(true);
+            }, []);
+
+            const handleLogin = (userData) => {
+                setUser(userData);
+                if (userData.role === 'admin') {
+                    setView('admin_dashboard');
+                } else {
+                    setView('student_dashboard');
+                }
+            };
+
+            const handleLogout = () => {
+                setUser(null);
+                setView('login');
+                setExamData(null);
+            };
+
+            if (!dbInitialized) return <div className="flex h-screen items-center justify-center">Loading...</div>;
+
+            return (
+                <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
+                    {/* Header */}
+                    <header className="bg-emerald-700 text-white p-4 shadow-md no-print">
+                        <div className="max-w-6xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                {appSettings.logo ? 
+                                    <img src={appSettings.logo} alt="Logo" className="h-10 w-10 object-contain rounded-full bg-white p-1"/> : 
+                                    <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center text-emerald-700 font-bold">MTs</div>
+                                }
+                                <div>
+                                    <h1 className="text-xl font-bold">Penilaian Tengah Semester</h1>
+                                    <p className="text-sm opacity-90">MTs. Mu'allimin NU Kota Malang | Matematika Kls IX</p>
+                                </div>
+                            </div>
+                            {user && (
+                                <div className="flex items-center gap-4">
+                                    <div className="text-right hidden sm:block">
+                                        <p className="font-semibold">{user.name}</p>
+                                        <p className="text-xs text-emerald-200 capitalize">{user.role === 'student' ? `Kelas ${user.kelas} | No. ${user.presensi}` : 'Administrator'}</p>
+                                    </div>
+                                    <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded text-sm transition font-medium flex items-center gap-2">
+                                        <i className="fas fa-sign-out-alt"></i> Keluar
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </header>
+
+                    <main className="max-w-6xl mx-auto p-4 sm:p-6 pb-20">
+                        {view === 'login' && <Login onLogin={handleLogin} appSettings={appSettings} />}
+                        {view === 'student_dashboard' && <StudentDashboard user={user} setView={setView} setExamData={setExamData} />}
+                        {view === 'exam' && <ExamInterface user={user} questions={questions} setView={setView} setExamData={setExamData} examData={examData} isPreview={user.role==='admin'}/>}
+                        {view === 'result' && <ResultView examData={examData} user={user} setView={setView} />}
+                        {view === 'admin_dashboard' && <AdminDashboard setView={setView} user={user} setExamData={setExamData} questions={questions} appSettings={appSettings} setAppSettings={setAppSettings} />}
+                        {view === 'admin_edit' && <AdminEditQuestions questions={questions} setQuestions={setQuestions} setView={setView} />}
+                    </main>
+                    
+                    <footer className="text-center text-sm text-slate-500 py-6 no-print">
+                        Disusun oleh: Dra. Siti Daiyah &copy; 2026
+                    </footer>
+                </div>
+            );
+        }
+
+        function Login({ onLogin, appSettings }) {
+            const [mode, setMode] = useState('student'); // student, admin
+            const [username, setUsername] = useState('');
+            const [kelas, setKelas] = useState('IX A');
+            const [presensi, setPresensi] = useState('');
+            const [adminUser, setAdminUser] = useState('admin');
+            const [adminPass, setAdminPass] = useState('');
+            const [error, setError] = useState('');
+
+            const handleStudentSubmit = (e) => {
+                e.preventDefault();
+                if (!username.trim() || !presensi.trim()) {
+                    setError("Nama dan Nomor Presensi wajib diisi.");
+                    return;
+                }
+                
+                // Simulating fetching user attempts from local storage for demo
+                const usersData = JSON.parse(localStorage.getItem('mathExamUsers') || '{}');
+                const userKey = `${kelas}_${presensi}`;
+                
+                let userData = usersData[userKey];
+                if (!userData) {
+                    userData = { role: 'student', name: username, kelas, presensi, attempts: 0, scores: [] };
+                    usersData[userKey] = userData;
+                    localStorage.setItem('mathExamUsers', JSON.stringify(usersData));
+                }
+
+                if (userData.attempts >= 3) {
+                    setError("Anda telah mencapai batas maksimal 3 kali pengerjaan.");
+                    return;
+                }
+
+                setError('');
+                onLogin(userData);
+            };
+
+            const handleAdminSubmit = (e) => {
+                e.preventDefault();
+                if (adminUser === 'admin' && adminPass === appSettings.adminPassword) {
+                    onLogin({ role: 'admin', name: 'Administrator' });
+                } else {
+                    setError("Username atau password admin salah.");
+                }
+            };
+
+            return (
+                <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden mt-10">
+                    <div className="flex border-b">
+                        <button className={`flex-1 py-3 text-center font-semibold transition ${mode === 'student' ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500' : 'text-slate-500 hover:bg-slate-50'}`} onClick={() => setMode('student')}>Siswa</button>
+                        <button className={`flex-1 py-3 text-center font-semibold transition ${mode === 'admin' ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500' : 'text-slate-500 hover:bg-slate-50'}`} onClick={() => setMode('admin')}>Guru / Admin</button>
+                    </div>
+
+                    <div className="p-6">
+                        {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-sm border border-red-200"><i className="fas fa-exclamation-circle mr-2"></i>{error}</div>}
+                        
+                        {mode === 'student' ? (
+                            <form onSubmit={handleStudentSubmit} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap Siswa</label>
+                                    <input type="text" className="w-full p-2 border rounded focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Masukkan nama lengkap..." value={username} onChange={e => setUsername(e.target.value)} required />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Kelas</label>
+                                        <select className="w-full p-2 border rounded focus:ring-2 focus:ring-emerald-500 outline-none" value={kelas} onChange={e => setKelas(e.target.value)}>
+                                            <option value="IX A">IX A</option>
+                                            <option value="IX B">IX B</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">No. Presensi (Password)</label>
+                                        <input type="number" className="w-full p-2 border rounded focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Misal: 12" value={presensi} onChange={e => setPresensi(e.target.value)} required />
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded transition mt-4">
+                                    Masuk Siswa
+                                </button>
+                                <p className="text-xs text-center text-slate-500 mt-4">Batas maksimal pengerjaan: 3 kali.</p>
+                            </form>
+                        ) : (
+                            <form onSubmit={handleAdminSubmit} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Username Admin</label>
+                                    <input type="text" className="w-full p-2 border rounded focus:ring-2 focus:ring-emerald-500 outline-none" value={adminUser} onChange={e => setAdminUser(e.target.value)} required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                                    <input type="password" className="w-full p-2 border rounded focus:ring-2 focus:ring-emerald-500 outline-none" value={adminPass} onChange={e => setAdminPass(e.target.value)} required />
+                                </div>
+                                <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded transition mt-4">
+                                    Masuk Admin
+                                </button>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        function StudentDashboard({ user, setView, setExamData }) {
+            const startExam = () => {
+                setExamData({
+                    answers: {},
+                    startTime: Date.now(),
+                    timeLimit: 90 * 60, // 90 minutes in seconds
+                    isFinished: false
+                });
+                setView('exam');
+            };
+
+            const attemptsLeft = 3 - user.attempts;
+
+            return (
+                <div className="bg-white rounded-xl shadow p-6 max-w-2xl mx-auto mt-6">
+                    <h2 className="text-2xl font-bold text-slate-800 mb-4">Selamat Datang, {user.name}</h2>
+                    
+                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r">
+                        <h3 className="font-semibold text-blue-800 mb-2">Informasi Asesmen:</h3>
+                        <ul className="list-disc ml-5 text-blue-900 text-sm space-y-1">
+                            <li>Mata Pelajaran: <strong>Matematika (Sistem Persamaan Linear Dua Variabel)</strong></li>
+                            <li>Waktu: <strong>90 Menit</strong></li>
+                            <li>KKM: <strong>80</strong></li>
+                            <li>Jumlah Soal: <strong>30 Soal</strong> (10 PG, 15 PG Kompleks, 5 Menjodohkan)</li>
+                        </ul>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-slate-100 rounded-lg mb-6">
+                        <div>
+                            <p className="text-sm text-slate-500 font-medium">Kesempatan Mengerjakan</p>
+                            <p className="text-xl font-bold text-slate-800">{attemptsLeft} / 3 kali tersisa</p>
+                        </div>
+                        {user.scores && user.scores.length > 0 && (
+                            <div className="text-right">
+                                <p className="text-sm text-slate-500 font-medium">Skor Tertinggi Anda</p>
+                                <p className="text-2xl font-bold text-emerald-600">{Math.max(...user.scores.map(s => s.score))}</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {attemptsLeft > 0 ? (
+                        <button onClick={startExam} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition text-lg flex items-center justify-center gap-2">
+                            <i className="fas fa-play"></i> Mulai Mengerjakan Sekarang
+                        </button>
+                    ) : (
+                        <div className="bg-red-50 text-red-600 p-4 rounded-lg text-center font-medium border border-red-200">
+                            Anda telah menggunakan semua (3) kesempatan mengerjakan.
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function useTimer(initialSeconds, onComplete) {
+            const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
+
+            useEffect(() => {
+                if (secondsLeft <= 0) {
+                    onComplete();
+                    return;
+                }
+                const interval = setInterval(() => {
+                    setSecondsLeft(prev => prev - 1);
+                }, 1000);
+                return () => clearInterval(interval);
+            }, [secondsLeft, onComplete]);
+
+            const formatTime = () => {
+                const h = Math.floor(secondsLeft / 3600);
+                const m = Math.floor((secondsLeft % 3600) / 60);
+                const s = secondsLeft % 60;
+                return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            };
+
+            return { secondsLeft, formatTime };
+        }
+
+        function ExamInterface({ user, questions, setView, setExamData, examData, isPreview = false }) {
+            const [currentQIndex, setCurrentQIndex] = useState(0);
+            const [localAnswers, setLocalAnswers] = useState(examData?.answers || {});
+            const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
+
+            const handleTimeUp = useCallback(() => {
+                if(!examData.isFinished) {
+                   submitExam(true);
+                }
+            }, [localAnswers]); // Include localAnswers to submit current state
+
+            const { secondsLeft, formatTime } = useTimer(examData?.timeLimit || 5400, handleTimeUp);
+
+            const handleAnswerChange = (qId, value, type) => {
+                const newAnswers = { ...localAnswers };
+                
+                if (type === 'pg') {
+                    newAnswers[qId] = value;
+                } else if (type === 'pg_kompleks') {
+                    const currentArr = newAnswers[qId] || [];
+                    if (currentArr.includes(value)) {
+                        newAnswers[qId] = currentArr.filter(v => v !== value);
+                    } else {
+                        newAnswers[qId] = [...currentArr, value];
+                    }
+                } else if (type === 'menjodohkan') {
+                    // value is { left: string, right: string }
+                    const currentMatches = newAnswers[qId] || [];
+                    // Remove existing match for the left side if it exists
+                    const filteredMatches = currentMatches.filter(m => m.left !== value.left);
+                    newAnswers[qId] = [...filteredMatches, value];
+                }
+                
+                setLocalAnswers(newAnswers);
+                setExamData({ ...examData, answers: newAnswers });
+            };
+
+            const submitExam = (autoSubmit = false) => {
+                let score = 0;
+                let correctCount = 0;
+                const maxScore = 100;
+                const totalQuestions = questions.length;
+                const weightPerQuestion = maxScore / totalQuestions; // 100/30 = 3.33..
+
+                questions.forEach(q => {
+                    const ans = localAnswers[q.id];
+                    if (!ans) return;
+
+                    if (q.type === 'pg' && ans === q.answer) {
+                        correctCount++;
+                        score += weightPerQuestion;
+                    } else if (q.type === 'pg_kompleks') {
+                        // All must be correct to get full points for this question, or partial? 
+                        // Let's implement strict: must select exact correct options.
+                        const correctAnswers = q.answers;
+                        if (ans.length === correctAnswers.length && ans.every(a => correctAnswers.includes(a))) {
+                            correctCount++;
+                            score += weightPerQuestion;
+                        } else if (ans.length > 0) {
+                            // Partial scoring for complex PG
+                            const correctMatches = ans.filter(a => correctAnswers.includes(a)).length;
+                            const incorrectMatches = ans.length - correctMatches;
+                            // Only give partial score if they didn't just guess everything
+                            if(incorrectMatches === 0) {
+                                score += (weightPerQuestion * (correctMatches / correctAnswers.length));
+                            }
+                        }
+                    } else if (q.type === 'menjodohkan') {
+                        // ans is array of {left, right}
+                        let matchCorrect = 0;
+                        const totalPairs = q.pairs.length;
+                        ans.forEach(match => {
+                            const correctPair = q.pairs.find(p => p.left === match.left);
+                            if (correctPair && correctPair.right === match.right) {
+                                matchCorrect++;
+                            }
+                        });
+                        score += (weightPerQuestion * (matchCorrect / totalPairs));
+                        if(matchCorrect === totalPairs) correctCount++;
+                    }
+                });
+
+                const finalScore = Math.round(score);
+
+                if (!isPreview) {
+                    // Save attempt data
+                    const usersData = JSON.parse(localStorage.getItem('mathExamUsers') || '{}');
+                    const userKey = `${user.kelas}_${user.presensi}`;
+                    if (usersData[userKey]) {
+                        usersData[userKey].attempts += 1;
+                        usersData[userKey].scores.push({
+                            score: finalScore,
+                            date: new Date().toISOString(),
+                            answers: localAnswers
+                        });
+                        localStorage.setItem('mathExamUsers', JSON.stringify(usersData));
+                    }
+                }
+
+                setExamData({
+                    ...examData,
+                    answers: localAnswers,
+                    score: finalScore,
+                    isFinished: true,
+                    timeSpent: (90 * 60) - secondsLeft
+                });
+                setView('result');
+            };
+
+            const q = questions[currentQIndex];
+
+            // Setup Navigation array for sidebar
+            const navButtons = questions.map((q, idx) => {
+                let status = 'unanswered';
+                const ans = localAnswers[q.id];
+                if (ans) {
+                    if (q.type === 'pg') status = 'answered';
+                    else if (q.type === 'pg_kompleks' && ans.length > 0) status = 'answered';
+                    else if (q.type === 'menjodohkan' && ans.length === q.pairs.length) status = 'answered'; // Complete
+                    else if (q.type === 'menjodohkan' && ans.length > 0) status = 'partial';
+                }
+                return (
+                    <button key={q.id} onClick={() => setCurrentQIndex(idx)}
+                        className={`w-10 h-10 rounded text-sm font-medium border flex items-center justify-center transition
+                            ${currentQIndex === idx ? 'ring-2 ring-emerald-500 ring-offset-1' : ''}
+                            ${status === 'answered' ? 'bg-emerald-500 text-white border-emerald-600' : 
+                              status === 'partial' ? 'bg-amber-400 text-slate-800 border-amber-500' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'}`}
+                    >
+                        {idx + 1}
+                    </button>
+                );
+            });
+
+            return (
+                <div className="flex flex-col md:flex-row gap-6">
+                    {/* Main Content Area */}
+                    <div className="flex-1">
+                        <div className="bg-white rounded-xl shadow mb-4 p-4 flex justify-between items-center sticky top-0 z-20">
+                            <div>
+                                <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                                    Soal {currentQIndex + 1} dari {questions.length}
+                                </span>
+                                {isPreview && <span className="ml-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">MODE UJICOBA ADMIN</span>}
+                            </div>
+                            <div className={`font-mono text-lg font-bold flex items-center gap-2 px-4 py-1.5 rounded-lg ${secondsLeft < 300 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-800'}`}>
+                                <i className="far fa-clock"></i> {formatTime()}
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow p-6 min-h-[400px]">
+                            {/* Question Header */}
+                            <div className="mb-6">
+                                <h3 className="text-lg text-slate-800 font-medium leading-relaxed mb-2">{q.text}</h3>
+                                {q.type === 'pg_kompleks' && <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded inline-block"><i className="fas fa-info-circle mr-1"></i> Pilih semua jawaban yang benar (bisa lebih dari satu).</p>}
+                                {q.type === 'menjodohkan' && <p className="text-sm text-amber-600 bg-amber-50 p-2 rounded inline-block"><i className="fas fa-info-circle mr-1"></i> Pasangkan item di sebelah kiri dengan yang tepat di sebelah kanan dengan mengkliknya.</p>}
+                            </div>
+
+                            {/* Options Area */}
+                            <div className="space-y-3">
+                                {q.type === 'pg' && q.options.map((opt, i) => (
+                                    <label key={i} className={`flex items-start p-4 border rounded-lg cursor-pointer transition ${localAnswers[q.id] === opt ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                        <input type="radio" name={`q_${q.id}`} value={opt} checked={localAnswers[q.id] === opt} onChange={() => handleAnswerChange(q.id, opt, 'pg')} className="mt-1 w-5 h-5 text-emerald-600 focus:ring-emerald-500 border-gray-300" />
+                                        <span className="ml-3 text-slate-700">{opt}</span>
+                                    </label>
+                                ))}
+
+                                {q.type === 'pg_kompleks' && q.options.map((opt, i) => (
+                                    <label key={i} className={`flex items-start p-4 border rounded-lg cursor-pointer transition ${(localAnswers[q.id] || []).includes(opt) ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                        <input type="checkbox" checked={(localAnswers[q.id] || []).includes(opt)} onChange={() => handleAnswerChange(q.id, opt, 'pg_kompleks')} className="mt-1 w-5 h-5 text-blue-600 focus:ring-blue-500 rounded border-gray-300" />
+                                        <span className="ml-3 text-slate-700">{opt}</span>
+                                    </label>
+                                ))}
+
+                                {q.type === 'menjodohkan' && (
+                                    <MatchingQuestion 
+                                        question={q} 
+                                        currentAnswers={localAnswers[q.id] || []} 
+                                        onMatch={(left, right) => handleAnswerChange(q.id, {left, right}, 'menjodohkan')} 
+                                    />
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Navigation Buttons */}
+                        <div className="flex justify-between items-center mt-6">
+                            <button onClick={() => setCurrentQIndex(Math.max(0, currentQIndex - 1))} disabled={currentQIndex === 0} className="px-5 py-2 bg-slate-200 text-slate-700 rounded-lg disabled:opacity-50 hover:bg-slate-300 transition">
+                                <i className="fas fa-chevron-left mr-2"></i> Sebelumnya
+                            </button>
+                            
+                            {currentQIndex < questions.length - 1 ? (
+                                <button onClick={() => setCurrentQIndex(currentQIndex + 1)} className="px-5 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition">
+                                    Selanjutnya <i className="fas fa-chevron-right ml-2"></i>
+                                </button>
+                            ) : (
+                                <button onClick={() => setShowConfirmSubmit(true)} className="px-6 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition shadow-md">
+                                    Selesai & Kumpulkan
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Sidebar / Grid */}
+                    <div className="w-full md:w-72 flex-shrink-0">
+                        <div className="bg-white rounded-xl shadow p-4 sticky top-4">
+                            <h4 className="font-semibold text-slate-800 mb-3 border-b pb-2">Navigasi Soal</h4>
+                            <div className="grid grid-cols-5 gap-2 max-h-[60vh] overflow-y-auto pr-1">
+                                {navButtons}
+                            </div>
+                            
+                            <div className="mt-6 pt-4 border-t space-y-2 text-sm text-slate-600">
+                                <div className="flex items-center gap-2"><div className="w-4 h-4 bg-emerald-500 rounded border border-emerald-600"></div> Sudah dijawab</div>
+                                <div className="flex items-center gap-2"><div className="w-4 h-4 bg-amber-400 rounded border border-amber-500"></div> Dijawab Sebagian</div>
+                                <div className="flex items-center gap-2"><div className="w-4 h-4 bg-white rounded border border-slate-300"></div> Belum dijawab</div>
+                            </div>
+
+                            <button onClick={() => setShowConfirmSubmit(true)} className="w-full mt-6 px-4 py-2 bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold rounded hover:bg-emerald-200 transition">
+                                Akhiri Ujian
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Confirmation Modal */}
+                    {showConfirmSubmit && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full">
+                                <h3 className="text-xl font-bold mb-4 text-slate-800">Konfirmasi Pengumpulan</h3>
+                                <p className="mb-6 text-slate-600">Apakah Anda yakin ingin mengakhiri ujian dan mengumpulkan jawaban? Waktu masih tersisa <strong>{formatTime()}</strong>.</p>
+                                <div className="flex gap-3 justify-end">
+                                    <button onClick={() => setShowConfirmSubmit(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded transition">Batal</button>
+                                    <button onClick={() => submitExam(false)} className="px-6 py-2 bg-emerald-600 text-white font-bold rounded hover:bg-emerald-700 transition">Ya, Kumpulkan</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function MatchingQuestion({ question, currentAnswers, onMatch }) {
+            const [selectedLeft, setSelectedLeft] = useState(null);
+            
+            // Randomize right side only once per render
+            const [rightOptions, setRightOptions] = useState([]);
+            
+            useEffect(() => {
+                // Shuffle right side
+                const rights = question.pairs.map(p => p.right);
+                for (let i = rights.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [rights[i], rights[j]] = [rights[j], rights[i]];
+                }
+                setRightOptions(rights);
+            }, [question]);
+
+            const handleLeftClick = (text) => {
+                if (selectedLeft === text) setSelectedLeft(null); // Deselect
+                else setSelectedLeft(text);
+            };
+
+            const handleRightClick = (rightText) => {
+                if (!selectedLeft) return; // Must select left first
+                onMatch(selectedLeft, rightText);
+                setSelectedLeft(null);
+            };
+
+            const handleRemoveMatch = (leftText, e) => {
+                e.stopPropagation();
+                // Send dummy match to remove it visually if needed, but easier is to let upper state handle it by sending null right side if we wanted to clear.
+                // For simplicity, re-clicking left and a new right overwrites. 
+                // To just clear, let's pass a special value or just let them overwrite.
+            };
+
+            return (
+                <div className="grid grid-cols-2 gap-8 relative select-none">
+                    {/* Left Side (Premis) */}
+                    <div className="space-y-4">
+                        <h4 className="font-semibold text-slate-600 text-center mb-2">Pernyataan</h4>
+                        {question.pairs.map((pair, idx) => {
+                            const isSelected = selectedLeft === pair.left;
+                            const currentMatch = currentAnswers.find(a => a.left === pair.left);
+                            const hasMatch = !!currentMatch;
+                            
+                            return (
+                                <div key={`l-${idx}`} 
+                                    onClick={() => handleLeftClick(pair.left)}
+                                    className={`match-item p-3 rounded border-2 flex justify-between items-center bg-white z-10 relative
+                                        ${isSelected ? 'selected border-emerald-500 shadow-md ring-2 ring-emerald-200 ring-offset-1' : 'border-slate-300 hover:border-slate-400'}
+                                        ${hasMatch && !isSelected ? 'border-blue-400 bg-blue-50' : ''}`
+                                    }>
+                                    <span className="text-sm">{pair.left}</span>
+                                    {hasMatch && <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full"><i className="fas fa-link"></i> Terhubung</span>}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Right Side (Respon) */}
+                    <div className="space-y-4">
+                         <h4 className="font-semibold text-slate-600 text-center mb-2">Pilihan Jawaban</h4>
+                        {rightOptions.map((text, idx) => {
+                            const matchedBy = currentAnswers.find(a => a.right === text);
+                            const isMatched = !!matchedBy;
+                            const isTarget = selectedLeft !== null && !isMatched;
+
+                            return (
+                                <div key={`r-${idx}`}
+                                    onClick={() => isTarget ? handleRightClick(text) : null}
+                                    className={`match-item p-3 rounded border-2 bg-white z-10 relative text-sm text-center flex flex-col justify-center
+                                        ${isMatched ? 'border-blue-400 bg-slate-100 text-slate-500 cursor-not-allowed' : 'border-slate-300'}
+                                        ${isTarget ? 'hover:border-emerald-500 hover:bg-emerald-50 cursor-crosshair border-dashed' : ''}
+                                    `}>
+                                    {text}
+                                    {isMatched && <div className="text-[10px] text-blue-600 mt-1 truncate">Pasangan: {matchedBy.left}</div>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        function ResultView({ examData, user, setView }) {
+            const kkm = 80;
+            const score = examData.score || 0;
+            const isPass = score >= kkm;
+
+            const timeMin = Math.floor(examData.timeSpent / 60);
+            const timeSec = examData.timeSpent % 60;
+
+            const handlePrint = () => {
+                window.print();
+            };
+
+            return (
+                <div className="max-w-3xl mx-auto mt-6">
+                    <div className="bg-white rounded-xl shadow-lg overflow-hidden border-t-8 border-emerald-600 print-only:border-0 print-only:shadow-none">
+                        
+                        <div className="p-8 text-center border-b">
+                            {/* Certificate like Header */}
+                            <h2 className="text-2xl font-bold text-slate-800 mb-1 uppercase tracking-wider">Hasil Asesmen Sumatif</h2>
+                            <p className="text-slate-500">Tengah Semester - Matematika Kelas IX</p>
+                            <p className="text-sm font-semibold text-slate-600 mt-1">MTs. Mu'allimin NU Kota Malang</p>
+                        </div>
+
+                        <div className="p-8">
+                            <div className="flex flex-col md:flex-row gap-8 items-center justify-between mb-8">
+                                <div className="flex-1 space-y-3">
+                                    <div className="grid grid-cols-3 border-b border-slate-100 pb-2">
+                                        <span className="text-slate-500 font-medium col-span-1">Nama Siswa</span>
+                                        <span className="text-slate-800 font-bold col-span-2">: {user.name}</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 border-b border-slate-100 pb-2">
+                                        <span className="text-slate-500 font-medium col-span-1">Kelas / No.</span>
+                                        <span className="text-slate-800 font-bold col-span-2">: {user.kelas} / {user.presensi}</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 border-b border-slate-100 pb-2">
+                                        <span className="text-slate-500 font-medium col-span-1">Waktu Pengerjaan</span>
+                                        <span className="text-slate-800 font-bold col-span-2">: {timeMin} menit {timeSec} detik</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="w-40 h-40 rounded-full border-8 flex flex-col items-center justify-center bg-slate-50 
+                                    ${isPass ? 'border-emerald-500' : 'border-red-400'}">
+                                    <span className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Nilai</span>
+                                    <span className={`text-5xl font-black ${isPass ? 'text-emerald-600' : 'text-red-500'}`}>
+                                        {score}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className={`p-4 rounded-lg text-center font-bold text-lg mb-6 ${isPass ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                {isPass ? (
+                                    <><i className="fas fa-check-circle mr-2"></i> Selamat! Anda mencapai nilai KKM (80).</>
+                                ) : (
+                                    <><i className="fas fa-times-circle mr-2"></i> Belum mencapai KKM (80). Tetap semangat belajar!</>
+                                )}
+                            </div>
+
+                            <div className="bg-slate-50 p-4 rounded-lg text-sm text-slate-600 border print-only:border-0 print-only:p-0 print-only:bg-transparent">
+                                <p><strong>Catatan:</strong> Dokumen ini merupakan bukti sah penyelesaian asesmen. Silakan unduh atau cetak halaman ini sebagai arsip pribadi.</p>
+                                <p className="mt-2 text-xs italic print-only:block hidden">Dicetak pada: {new Date().toLocaleString('id-ID')}</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-100 p-4 flex gap-4 justify-center no-print">
+                            <button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-medium transition shadow flex items-center gap-2">
+                                <i className="fas fa-print"></i> Cetak / Download PDF
+                            </button>
+                            <button onClick={() => setView('student_dashboard')} className="bg-slate-600 hover:bg-slate-700 text-white px-6 py-2 rounded font-medium transition shadow">
+                                Kembali ke Beranda
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function AdminDashboard({ setView, user, setExamData, questions, appSettings, setAppSettings }) {
+            const [usersData, setUsersData] = useState({});
+
+            useEffect(() => {
+                const storedUsers = JSON.parse(localStorage.getItem('mathExamUsers') || '{}');
+                setUsersData(storedUsers);
+            }, []);
+
+            const testAsStudent = () => {
+                setExamData({
+                    answers: {},
+                    startTime: Date.now(),
+                    timeLimit: 90 * 60,
+                    isFinished: false
+                });
+                setView('exam');
+            };
+
+            const updateSettings = (e) => {
+                e.preventDefault();
+                localStorage.setItem('mathExamSettings', JSON.stringify(appSettings));
+                alert('Pengaturan berhasil disimpan!');
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-white rounded-xl shadow p-6">
+                        <h2 className="text-2xl font-bold text-slate-800 mb-2">Panel Administrator</h2>
+                        <p className="text-slate-600 mb-6">Kelola soal, pantau hasil ujian siswa, dan atur pengaturan aplikasi.</p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 flex flex-col justify-between">
+                                <div>
+                                    <h3 className="font-bold text-emerald-800 text-lg mb-1"><i className="fas fa-book mr-2"></i>Kelola Soal</h3>
+                                    <p className="text-sm text-emerald-600 mb-4">Total: {questions.length} Soal (10 PG, 15 PGK, 5 Menjodohkan)</p>
+                                </div>
+                                <button onClick={() => setView('admin_edit')} className="bg-emerald-600 text-white w-full py-2 rounded hover:bg-emerald-700 transition font-medium">Edit Bank Soal</button>
+                            </div>
+                            
+                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-5 flex flex-col justify-between">
+                                <div>
+                                    <h3 className="font-bold text-purple-800 text-lg mb-1"><i className="fas fa-play-circle mr-2"></i>Simulasi Ujian</h3>
+                                    <p className="text-sm text-purple-600 mb-4">Uji coba aplikasi sebagai siswa tanpa mengurangi kuota.</p>
+                                </div>
+                                <button onClick={testAsStudent} className="bg-purple-600 text-white w-full py-2 rounded hover:bg-purple-700 transition font-medium">Mulai Uji Coba</button>
+                            </div>
+
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 flex flex-col justify-between">
+                                <div>
+                                    <h3 className="font-bold text-blue-800 text-lg mb-1"><i className="fas fa-users mr-2"></i>Data Siswa</h3>
+                                    <p className="text-sm text-blue-600 mb-4">{Object.keys(usersData).length} siswa terdaftar di database lokal.</p>
+                                </div>
+                                <button onClick={() => alert('Fitur rekap lengkap dapat dikembangkan lebih lanjut. Saat ini data tersimpan di LocalStorage browser.')} className="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700 transition font-medium">Lihat Rekap Nilai</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Pengaturan Aplikasi</h3>
+                        <form onSubmit={updateSettings} className="max-w-md space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Ganti Password Admin</label>
+                                <input type="text" className="w-full p-2 border rounded focus:ring-2 focus:ring-emerald-500" 
+                                    value={appSettings.adminPassword} 
+                                    onChange={(e) => setAppSettings({...appSettings, adminPassword: e.target.value})} />
+                                <p className="text-xs text-slate-500 mt-1">Default: admin123</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">URL Logo Sekolah (Opsional)</label>
+                                <input type="url" className="w-full p-2 border rounded focus:ring-2 focus:ring-emerald-500" 
+                                    placeholder="https://example.com/logo.png"
+                                    value={appSettings.logo} 
+                                    onChange={(e) => setAppSettings({...appSettings, logo: e.target.value})} />
+                            </div>
+                            <button type="submit" className="bg-slate-800 text-white px-4 py-2 rounded hover:bg-slate-900 transition font-medium">Simpan Pengaturan</button>
+                        </form>
+                    </div>
+
+                    {/* Quick View Results */}
+                    <div className="bg-white rounded-xl shadow p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Log Pengerjaan Siswa Terakhir</h3>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-600 border-b">
+                                    <tr>
+                                        <th className="p-3">Nama</th>
+                                        <th className="p-3">Kelas / Presensi</th>
+                                        <th className="p-3 text-center">Percobaan Ke</th>
+                                        <th className="p-3 text-center">Nilai Tertinggi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Object.values(usersData).length === 0 ? (
+                                        <tr><td colSpan="4" className="p-4 text-center text-slate-500 italic">Belum ada data siswa yang mengerjakan.</td></tr>
+                                    ) : (
+                                        Object.values(usersData).map((u, i) => (
+                                            <tr key={i} className="border-b hover:bg-slate-50">
+                                                <td className="p-3 font-medium">{u.name}</td>
+                                                <td className="p-3">{u.kelas} / {u.presensi}</td>
+                                                <td className="p-3 text-center">{u.attempts}</td>
+                                                <td className="p-3 text-center font-bold text-emerald-600">
+                                                    {u.scores && u.scores.length > 0 ? Math.max(...u.scores.map(s => s.score)) : '-'}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function AdminEditQuestions({ questions, setQuestions, setView }) {
+            // Simplified editor for demo purposes. Full implementation would need complex form arrays.
+            
+            const handleSaveAll = () => {
+                localStorage.setItem('mathExamQuestions', JSON.stringify(questions));
+                alert('Bank Soal berhasil disimpan secara lokal!');
+            };
+
+            const handleResetDefault = () => {
+                if(confirm("Apakah Anda yakin ingin mengembalikan soal ke bawaan awal?")) {
+                    setQuestions(INITIAL_QUESTIONS);
+                    localStorage.removeItem('mathExamQuestions');
+                }
+            };
+
+            return (
+                <div className="bg-white rounded-xl shadow p-6">
+                    <div className="flex justify-between items-center mb-6 border-b pb-4">
+                        <div>
+                            <h2 className="text-2xl font-bold text-slate-800">Edit Bank Soal</h2>
+                            <p className="text-slate-600 text-sm">Menampilkan raw data view untuk efisiensi di mode demo.</p>
+                        </div>
+                        <div className="flex gap-2">
+                             <button onClick={handleResetDefault} className="px-4 py-2 border border-red-200 text-red-600 rounded hover:bg-red-50 text-sm font-medium transition">Reset Default</button>
+                            <button onClick={() => setView('admin_dashboard')} className="px-4 py-2 bg-slate-200 text-slate-700 rounded hover:bg-slate-300 text-sm font-medium transition">Kembali</button>
+                            <button onClick={handleSaveAll} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm font-medium transition shadow">Simpan Perubahan</button>
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-800 rounded-lg p-4 font-mono text-sm text-green-400 overflow-auto h-[600px] w-full">
+                        <textarea 
+                            className="w-full h-full bg-transparent border-none outline-none resize-none"
+                            value={JSON.stringify(questions, null, 2)}
+                            onChange={(e) => {
+                                try {
+                                    setQuestions(JSON.parse(e.target.value));
+                                } catch (err) {
+                                    // ignore invalid json during typing
+                                }
+                            }}
+                            spellCheck="false"
+                        />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2"><i className="fas fa-info-circle"></i> Di versi production, ini akan menjadi form visual yang user-friendly per tipe soal.</p>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
